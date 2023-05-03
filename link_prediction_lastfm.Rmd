@@ -15,6 +15,7 @@ library(igraph)
 library(visNetwork)
 library(ggplot2)
 library(ggthemes)
+set.seed(123)
 
 ```
 
@@ -27,14 +28,116 @@ plot(g)
 
 ```{r}
 par(mar=c(0,0,0,0),mfrow=c(1,3))
-E(g)$color<-"lightgray"; V(g)$color <- "white";ll <- layout.kamada.kawai(g)
+E(g)$color<-"lightgray"; V(g)$color <- "white";
+ll <- layout.kamada.kawai(g)
 plot(g,layout=ll,vertex.label="")
-ierase = get.edge.ids(g, c(1,18))
+ierase = get.edge.ids(g, c(898,7199))
 E(g)$color[ierase] = "red"
 plot(g,layout=ll,vertex.label="")
-V(g)$color[c(20,34)] <- "orange"
+V(g)$color[c(898,7199)] <- "orange"
 plot(delete_edges(g,ierase),layout=ll,vertex.label="")
 
 
 ```
+
+```{r}
+set.seed(123)
+nlinks <- 5000
+ii <- sample(1:ecount(g),nlinks) # get index
+gp <- delete_edges(g,ii) #delete it
+```
+
+```{r}
+true_edges <- data.frame(get.edges(g,ii))
+true_edges
+```
+
+```{r}
+false_edges <- data.frame()
+most_connected <- which(degree(g)>10) # the fake links should be between nodes with degre greather than 10 
+for(i in 1:nlinks){
+  i1 <- sample(most_connected,1)
+  i2 <- sample(most_connected,1)
+  if(!are.connected(g,i1,i2)) false_edges <- rbind(false_edges,data.frame(X1=i1,X2=i2)) # if the nodes are not connected, we write it in the table
+}
+```
+
+
+```{r}
+true_edges <- data.frame(true_edges,obs=1)  # assign the target binary variable
+false_edges <- data.frame(false_edges,obs=0)
+
+total_edges <- rbind(true_edges,false_edges)
+colnames(total_edges) <- c("id1","id2","obs")
+```
+
+```{r}
+
+n1 <- neighborhood(gp,order=1,nodes=total_edges$id1)
+head(n1)
+n2 <- neighborhood(gp,order=1,nodes=total_edges$id2)
+head(n2)
+```
+
+```{r}
+total_edges$sim_jacc <- 0
+total_edges$sim_aa <- 0
+total_edges$sim_pref <- 0
+for(i in 1:nrow(total_edges)){
+   common_neigh <- intersect(n1[[i]],n2[[i]])
+   all_neigh <- union(n1[[i]],n2[[i]])
+   degree_common_neigh <- degree(gp,common_neigh)
+   total_edges$sim_jacc[i] <- length(common_neigh)/(length(all_neigh)-2)
+   if(length(common_neigh)>0) total_edges$sim_aa[i] <- sum(1/log(degree_common_neigh)) # como este es un logaritmo, solo se computa si el valor original es mayor a 0
+   total_edges$sim_pref[i] <- length(n1[[i]])*length(n2[[i]])
+}
+```
+
+```{r}
+total_edges %>% pivot_longer(c(sim_jacc,sim_aa,sim_pref)) %>%
+  ggplot(aes(x=as.factor(obs),y=value)) + geom_boxplot() + facet_wrap(~name,scales="free")
+```
+
+```{r}
+ii <- sample(1:nrow(total_edges),0.75*nrow(total_edges))
+total_edges_train <- total_edges[ii,]
+total_edges_test <- total_edges[-ii,]
+```
+
+```{r}
+require(stargazer)
+glm_link <- glm(obs ~ sim_jacc+sim_aa+sim_pref,
+                data=total_edges_train,family=binomial(link="logit"))
+
+library(stargazer)
+stargazer(glm_link,type = "text",single.row = T,header=FALSE)
+```
+```{r}
+glm_prediction <- predict.glm(glm_link,total_edges_test,type="response") 
+```
+
+```{r}
+pred <- sign(glm_prediction > 0.3)
+
+table(pred,total_edges_test$obs,dnn=c("pred","obs"))
+```
+```{r}
+
+require(caret)
+confusionMatrix(factor(pred),factor(total_edges_test$obs),positive = "1")
+```
+
+```{r}
+varImp(glm_link)
+```
+
+```{r}
+require(corrplot)
+cc <- cor(total_edges_test[,c("sim_jacc","sim_aa","sim_pref")])
+corrplot(cc)
+```
+
+
+
+
 
