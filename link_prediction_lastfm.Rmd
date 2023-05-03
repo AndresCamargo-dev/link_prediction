@@ -84,23 +84,18 @@ for(i in 1:nlinks){
 ```
 
 
-
-```{r}
-true_edges <- data.frame(true_edges,obs=1)  
-```
-
-
 ##2. Similarity metrics
 
 *Generate a number of proximity/similarty metrics heuristics for each link in the positive and negative class*
-
+```{r}
+true_edges <- data.frame(true_edges,obs=1)  
 false_edges <- data.frame(false_edges,obs=0)
 
 total_edges <- rbind(true_edges,false_edges)
 colnames(total_edges) <- c("id1","id2","obs")
 ```
 
-<<<<<<< HEAD
+
 ```{r}
 
 n1 <- neighborhood(gp,order=1,nodes=total_edges$id1)
@@ -148,6 +143,7 @@ glm_link <- glm(obs ~ sim_jacc+sim_aa+sim_pref,
 library(stargazer)
 stargazer(glm_link,type = "text",single.row = T,header=FALSE)
 ```
+
 ```{r}
 glm_prediction <- predict.glm(glm_link,total_edges_test,type="response") 
 ```
