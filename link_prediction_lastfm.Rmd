@@ -6,8 +6,10 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
+
+Packages needed
 
 ```{r}
 library(tidyverse)
@@ -17,6 +19,9 @@ library(ggplot2)
 library(ggthemes)
 
 ```
+
+
+## 0. Network description
 
 ```{r}
 fm = read_delim("lasftm_asia/lastfm_asia_edges.csv", delim=",")
@@ -38,3 +43,24 @@ plot(delete_edges(g,ierase),layout=ll,vertex.label="")
 
 ```
 
+## 1. Edges deletion
+
+*Delete a fraction of real edges in the network and create a table of those links deleted (positive class) and of links non-present (negative class) *
+
+
+##2. Similarity metrics
+
+*Generate a number of proximity/similarty metrics heuristics for each link in the positive and negative class*
+
+
+##3. Binary classifier training 
+
+*Train a binary classifier to predict the links, i.e., to predict the class (positive/negative) using those heuristics. Use crossvalidation.*
+
+##4. Model evaluation
+
+*Evaluate the precision of the model. Which heuristic is the most important. Why do you think it is the most important?*
+
+##5. Potential improvements 
+
+*Comment on potential ways to improve the link prediction* 
