@@ -23,23 +23,32 @@ library(ggthemes)
 
 ## 0. Network description
 
+*LastFM Asia Social Network*
+
+The chosen network is a social network of LastFM Asian users available at the [Stanford Network Analysis Platform (SNAP)](https://snap.stanford.edu/index.html). Last.fm is a social media, an internet radio, and also a music recommendation system that builds profiles and statistics about musical preferences, based on data sent by registered users.
+
+According to SNAP, the data was collected from the public API in March 2020. Nodes are LastFM users from Asian countries and edges are mutual follower relationships between them. The vertex features are extracted based on the artists liked by the users. It can be downloaded in csv format from [LastFM Asia Social Network](https://snap.stanford.edu/data/feather-lastfm-social.html). 
+
+The network will be used to perform link prediction. 
+
+To start with, the data is loaded to R. 
+
+
 ```{r}
 fm = read_delim("lasftm_asia/lastfm_asia_edges.csv", delim=",")
 g = graph.data.frame(fm, directed = FALSE)
+```
+
+```{r}
 g
 plot(g)
 ```
+The network has 7624 edges and 27806 links. 
 
 ```{r}
 par(mar=c(0,0,0,0),mfrow=c(1,3))
 E(g)$color<-"lightgray"; V(g)$color <- "white";ll <- layout.kamada.kawai(g)
-plot(g,layout=ll,vertex.label="")
-ierase = get.edge.ids(g, c(1,18))
-E(g)$color[ierase] = "red"
-plot(g,layout=ll,vertex.label="")
-V(g)$color[c(20,34)] <- "orange"
-plot(delete_edges(g,ierase),layout=ll,vertex.label="")
-
+plot(g,layout=ll,vertex.label="", vertex.size = 1)
 
 ```
 
@@ -48,9 +57,68 @@ plot(delete_edges(g,ierase),layout=ll,vertex.label="")
 *Delete a fraction of real edges in the network and create a table of those links deleted (positive class) and of links non-present (negative class) *
 
 
+```{r}
+set.seed(123)
+nlinks <- 5000
+ii <- sample(1:ecount(g),nlinks)
+gp <- delete_edges(g,ii)
+```
+
+Table of deleted (true) links
+```{r}
+true_edges <- data.frame(get.edges(g,ii))
+```
+
+Table of false links
+
+```{r}
+false_edges <- data.frame()
+most_connected <- which(degree(g)>10)
+for(i in 1:nlinks){
+  i1 <- sample(most_connected,1)
+  i2 <- sample(most_connected,1)
+  if(!are.connected(g,i1,i2)) false_edges <- rbind(false_edges,data.frame(X1=i1,X2=i2))
+}
+```
+
+
 ##2. Similarity metrics
 
 *Generate a number of proximity/similarty metrics heuristics for each link in the positive and negative class*
+
+```{r}
+true_edges <- data.frame(true_edges,obs=1)
+false_edges <- data.frame(false_edges,obs=0)
+
+total_edges <- rbind(true_edges,false_edges)
+colnames(total_edges) <- c("id1","id2","obs")
+```
+
+
+```{r}
+n1 <- neighborhood(gp,order=1,nodes=total_edges$id1)
+n2 <- neighborhood(gp,order=1,nodes=total_edges$id2)
+```
+
+```{r}
+total_edges$sim_jacc <- 0
+total_edges$sim_aa <- 0
+total_edges$sim_pref <- 0
+for(i in 1:nrow(total_edges)){
+   common_neigh <- intersect(n1[[i]],n2[[i]])
+   all_neigh <- union(n1[[i]],n2[[i]])
+   degree_common_neigh <- degree(gp,common_neigh)
+   total_edges$sim_jacc[i] <- length(common_neigh)/(length(all_neigh)-2)
+   if(length(common_neigh)>0) total_edges$sim_aa[i] <- sum(1/log(degree_common_neigh))
+   total_edges$sim_pref[i] <- length(n1[[i]])*length(n2[[i]])
+}
+```
+
+
+```{r}
+total_edges %>% pivot_longer(c(sim_jacc,sim_aa,sim_pref)) %>%
+  ggplot(aes(x=as.factor(obs),y=value)) + geom_boxplot() + facet_wrap(~name,scales="free")
+```
 
 
 ##3. Binary classifier training 
