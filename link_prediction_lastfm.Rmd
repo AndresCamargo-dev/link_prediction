@@ -17,6 +17,7 @@ library(igraph)
 library(visNetwork)
 library(ggplot2)
 library(ggthemes)
+library(caret)
 set.seed(123)
 
 ```
@@ -81,12 +82,15 @@ for(i in 1:nlinks){
   i2 <- sample(most_connected,1)
   if(!are.connected(g,i1,i2)) false_edges <- rbind(false_edges,data.frame(X1=i1,X2=i2))
 }
+
+false_edges
 ```
 
 
 ##2. Similarity metrics
 
 *Generate a number of proximity/similarty metrics heuristics for each link in the positive and negative class*
+
 ```{r}
 true_edges <- data.frame(true_edges,obs=1)  
 false_edges <- data.frame(false_edges,obs=0)
@@ -116,6 +120,8 @@ for(i in 1:nrow(total_edges)){
    if(length(common_neigh)>0) total_edges$sim_aa[i] <- sum(1/log(degree_common_neigh))
    total_edges$sim_pref[i] <- length(n1[[i]])*length(n2[[i]])
 }
+
+total_edges
 ```
 
 ```{r}
@@ -154,17 +160,53 @@ pred <- sign(glm_prediction > 0.3)
 table(pred,total_edges_test$obs,dnn=c("pred","obs"))
 ```
 
-
 ##4. Model evaluation
 
 *Evaluate the precision of the model. Which heuristic is the most important. Why do you think it is the most important?*
 
 
 ```{r}
-
-require(caret)
 confusionMatrix(factor(pred),factor(total_edges_test$obs),positive = "1")
 ```
+
+
+### Training Using Cross Validation
+
+```{r}
+total_edges_train = total_edges_train %>% mutate(obs = as.factor(obs))
+total_edges_test = total_edges_test %>% mutate(obs = as.factor(obs))
+levels(total_edges_train$obs)= c("No","Yes")
+levels(total_edges_test$obs)= c("No","Yes")
+
+ctrl = trainControl(
+  method = "repeatedcv",
+  number = 10,
+  classProbs = T,
+  summaryFunction = twoClassSummary,
+  verboseIter = T
+  )
+
+rfFit = train(
+  obs ~ sim_jacc+sim_aa+sim_pref,
+  data = total_edges_train,
+  method= "rf",
+  preProc= c('scale', 'center'),
+  tuneLength= 10,
+  metric = "ROC",
+  trControl = ctrl
+)
+
+rfProb = predict(rfFit, total_edges_test, type = "prob")
+prediction = as.factor(ifelse(rfProb[,2]>0.1, "Yes", "No"))
+
+confusionMatrix(prediction, total_edges_test$obs)
+
+
+```
+
+
+
+
 
 ```{r}
 varImp(glm_link)
