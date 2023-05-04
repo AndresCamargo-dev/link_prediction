@@ -60,7 +60,7 @@ plot(g,layout=ll,vertex.label="", vertex.size = 1)
 
 ```{r}
 set.seed(123)
-nlinks <- 5000
+nlinks <- 1600
 ii <- sample(1:ecount(g),nlinks)
 gp <- delete_edges(g,ii)
 ```
