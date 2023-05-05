@@ -233,6 +233,8 @@ prediction = as.factor(ifelse(log_prediction[,2]>0.35, "Yes", "No"))
 
 confusionMatrix(prediction, total_edges_test$obs)
 ```
+Performance of the model is very good! We get an accuracy of 90%, with similar values for sensitivity and specificity measures. This means that our model is predicting correctly 90% of the links, and is doing specially well on predicting the negative classes (92% correct predictions for false links)
+
 Which heuristic is the most important?
 
 ```{r}
@@ -249,6 +251,8 @@ prediction = as.factor(ifelse(rfProb[,2]>0.1, "Yes", "No"))
 
 confusionMatrix(prediction, total_edges_test$obs)
 ```
+The random forest is also very good, with similar performance to the logistic, but even better for the negative cases. 
+
 
 To see variable importance in this case:
 
@@ -260,7 +264,7 @@ For the random forest method, the most important variable is the preferential at
 
 
 For the two models, the most important heuristics are Adamic-Adar and preferential attachment. Why could this be?
-It's possible that the Adamic-Adar similarity measure captures important structural information about the network that other features do not. For example, if the LastFM network has a structure where a few highly connected nodes are surrounded by many less connected nodes, the Adamic-Adar measure may be particularly effective at capturing the importance of the highly connected nodes. Additionally, preferential attachment is related to the distribution of node degrees in the network. Since our network has a few highly connected nodes (hubs, as we saw in the degree distribution of the LastFM network in homework 1) and many less connected nodes, preferential attachment is capturing the importance of the highly connected nodes.
+It's possible that the Adamic-Adar similarity measure captures important structural information about the network that other features do not. For example, if the LastFM network has a structure where a few highly connected nodes are surrounded by many less connected nodes, the Adamic-Adar measure may be particularly effective at capturing the importance of the highly connected nodes. Additionally, preferential attachment is related to the distribution of node degrees in the network. Since our network has a few highly connected nodes (hubs, as we saw in the degree distribution of the LastFM network in homework 1) and many less connected nodes, preferential attachment is capturing the importance of the highly connected nodes. Since both models show a high performance, probably the structure of LastFM network is according to this explanation. 
 
 
 
