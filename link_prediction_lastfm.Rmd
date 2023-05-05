@@ -18,8 +18,9 @@ library(visNetwork)
 library(ggplot2)
 library(ggthemes)
 library(caret)
-set.seed(123)
+library(stargazer)
 
+set.seed(123)
 ```
 
 
@@ -31,21 +32,20 @@ The chosen network is a social network of LastFM Asian users available at the [S
 
 According to SNAP, the data was collected from the public API in March 2020. Nodes are LastFM users from Asian countries and edges are mutual follower relationships between them. The vertex features are extracted based on the artists liked by the users. It can be downloaded in csv format from [LastFM Asia Social Network](https://snap.stanford.edu/data/feather-lastfm-social.html). 
 
-The network will be used to perform link prediction. 
+The network will be used to perform link prediction, this is, to predict link formation between nodes in the real data. 
 
-To start with, the data is loaded to R. 
-
+To start with, the data is loaded to R. Then, it is converted into a graph object. Since edges are following relationships which are mutual between users, the network is undirected.
 
 ```{r}
 fm = read_delim("lasftm_asia/lastfm_asia_edges.csv", delim=",")
 g = graph.data.frame(fm, directed = FALSE)
+
+g
 ```
 
-```{r}
-g
-plot(g)
-```
 The network has 7624 edges and 27806 links. 
+
+Even it is quite big, we can try to visualize it in R. 
 
 ```{r}
 par(mar=c(0,0,0,0),mfrow=c(1,3))
@@ -58,21 +58,21 @@ plot(g,layout=ll,vertex.label="", vertex.size = 1)
 
 *Delete a fraction of real edges in the network and create a table of those links deleted (positive class) and of links non-present (negative class) *
 
+To perform the link inference, we first remove a fraction of links, so we get a new graph with fewer number of links (gp). Then, we will try to infer the deleted links with a binary classifier. To do so, we need two classes of links: a positive (those which are present) and a negative one (those links which do not exist)
 
 ```{r}
-set.seed(123)
-nlinks <- 1600
+nlinks <- 1600 #links to be deleted (positive class)
 ii <- sample(1:ecount(g),nlinks)
 gp <- delete_edges(g,ii)
 ```
 
-Table of deleted (true) links
+Table of deleted (true) links: we store the true deleted links in a separate table, which conforms the positive class. 
 ```{r}
 true_edges <- data.frame(get.edges(g,ii))
 true_edges
 ```
 
-Table of false links
+Table of false links: for links which are not actually there, we use false links between random nodes (the most connected ones) which are the negative class. 
 
 ```{r}
 false_edges <- data.frame()
@@ -86,32 +86,45 @@ for(i in 1:nlinks){
 false_edges
 ```
 
-
-##2. Similarity metrics
-
-*Generate a number of proximity/similarty metrics heuristics for each link in the positive and negative class*
+Now that we have both kinds of links, we can put them together into a single table, adding an `obs` variable to distinguish them:
 
 ```{r}
 true_edges <- data.frame(true_edges,obs=1)  
 false_edges <- data.frame(false_edges,obs=0)
 
+# Joing all edges
 total_edges <- rbind(true_edges,false_edges)
 colnames(total_edges) <- c("id1","id2","obs")
+
+total_edges
 ```
 
+##2. Similarity metrics
+
+*Generate a number of proximity/similarty metrics heuristics for each link in the positive and negative class*
+
+In the link prediction problem, the basic idea is that nodes which have large proximity are bound o have a link. Similarity metrics are measures of proximity in the social network by using the social structure of the graph. A key concept in these metrics is that of common neighbors: two nodes that share a lot of neighbors might be introduced by a common friend. With this idea we can construct different measures such as: 
+
+  - Jaccard’s Coefficient: if nodes have very large connectivity, then they might probably share some neighbors. Thus we might consider instead the fraction of neighbors shared between them.
+
+  - Adamic-Adar: similar to number of common neighbors, but each neighbor is weighted inversely proportional to its degree (takes into account the degree of shared neighbors between two nodes). Thus nodes which have only as neighbors x and y count more than nodes with high connectivity that happen to have x and y as neighbors. 
+
+  - Preferential attachment: mechanism in social networks where new connections are more likely to be formed between nodes that are already highly connected (rich get richer). If the probability that x and y get a new neighbor is proportional to their degree, the probability  that a new link is formed between x and y grows with the product of their degrees. 
+
+Since we already have the table with all the nodes and links, we can compute the neighborhood of the nodes at each side of each link considered. 
 
 ```{r}
-
 n1 <- neighborhood(gp,order=1,nodes=total_edges$id1)
-head(n1)
 n2 <- neighborhood(gp,order=1,nodes=total_edges$id2)
-head(n2)
 ```
+
+Since the neighborhoods are saved as lists, we can calculate the proximity metrics for each link in the following way:
 
 ```{r}
 total_edges$sim_jacc <- 0
 total_edges$sim_aa <- 0
 total_edges$sim_pref <- 0
+
 for(i in 1:nrow(total_edges)){
    common_neigh <- intersect(n1[[i]],n2[[i]])
    all_neigh <- union(n1[[i]],n2[[i]])
@@ -124,10 +137,21 @@ for(i in 1:nrow(total_edges)){
 total_edges
 ```
 
+To analyze the generated heuristics, we plot them in boxplots to see the differences between true and false links: 
+
 ```{r}
 total_edges %>% pivot_longer(c(sim_jacc,sim_aa,sim_pref)) %>%
   ggplot(aes(x=as.factor(obs),y=value)) + geom_boxplot() + facet_wrap(~name,scales="free")
 ```
+We can see that all proximity measures all larger for the real links, but specially the Adamic-Adar and Jaccard's Coefficient. The median value of their distribution is larger, and they present more big outliers. 
+
+##3. Binary classifier training 
+
+*Train a binary classifier to predict the links, i.e., to predict the class (positive/negative) using those heuristics. Use crossvalidation.*
+
+Now, we are ready to use the metrics as explanatory variables in a binary classifier which tries to predict real links (obs=1) and non-existent ones(obs=0). The classifier can take different forms, such as logistic regression or random forest. 
+
+To start with, the sample is divided into train and test. 
 
 ```{r}
 ii <- sample(1:nrow(total_edges),0.75*nrow(total_edges))
@@ -135,49 +159,10 @@ total_edges_train <- total_edges[ii,]
 total_edges_test <- total_edges[-ii,]
 ```
 
-
-##3. Binary classifier training 
-
-*Train a binary classifier to predict the links, i.e., to predict the class (positive/negative) using those heuristics. Use crossvalidation.*
-
+To train the models with cross validation, we use the package caret. First, we fix the settings for the CV: 
 
 ```{r}
-require(stargazer)
-glm_link <- glm(obs ~ sim_jacc+sim_aa+sim_pref,
-                data=total_edges_train,family=binomial(link="logit"))
-
-library(stargazer)
-stargazer(glm_link,type = "text",single.row = T,header=FALSE)
-```
-
-```{r}
-glm_prediction <- predict.glm(glm_link,total_edges_test,type="response") 
-```
-
-```{r}
-pred <- sign(glm_prediction > 0.3)
-
-table(pred,total_edges_test$obs,dnn=c("pred","obs"))
-```
-
-##4. Model evaluation
-
-*Evaluate the precision of the model. Which heuristic is the most important. Why do you think it is the most important?*
-
-
-```{r}
-confusionMatrix(factor(pred),factor(total_edges_test$obs),positive = "1")
-```
-
-
-### Training Using Cross Validation
-
-```{r}
-total_edges_train = total_edges_train %>% mutate(obs = as.factor(obs))
-total_edges_test = total_edges_test %>% mutate(obs = as.factor(obs))
-levels(total_edges_train$obs)= c("No","Yes")
-levels(total_edges_test$obs)= c("No","Yes")
-
+# set the cv parameters
 ctrl = trainControl(
   method = "repeatedcv",
   number = 10,
@@ -185,7 +170,41 @@ ctrl = trainControl(
   summaryFunction = twoClassSummary,
   verboseIter = T
   )
+```
 
+Second, we prepare the variables: put them as factor in both train and test samples and name their classes with postive (yes) and negative (no) labels. 
+
+```{r}
+total_edges_train = total_edges_train %>% mutate(obs = as.factor(obs))
+total_edges_test = total_edges_test %>% mutate(obs = as.factor(obs))
+levels(total_edges_train$obs)= c("No","Yes")
+levels(total_edges_test$obs)= c("No","Yes")
+
+```
+
+Now, we train the logistic model:
+
+```{r}
+logistic_cv = train(
+  obs ~ sim_jacc+sim_aa+sim_pref,
+  data = total_edges_train,
+  method= "glm",
+  family = "binomial",
+  metric = "ROC",
+  preProc= c('scale', 'center'),
+  tuneLength= 10,
+  trControl = ctrl)
+
+#model summary
+summary(logistic_cv$finalModel)
+
+```
+It seems that the Jaccard's coefficient is not statistically significant for the link prediction. We can check it also by looking at the variables importance:
+
+We also train a random forest to compare the results and see which model has better performance:
+
+```{r}
+# train the rf model
 rfFit = train(
   obs ~ sim_jacc+sim_aa+sim_pref,
   data = total_edges_train,
@@ -195,30 +214,59 @@ rfFit = train(
   metric = "ROC",
   trControl = ctrl
 )
+```
 
+
+## 4. Model evaluation
+
+*Evaluate the precision of the model. Which heuristic is the most important. Why do you think it is the most important?*
+
+Finally, we evaluate the performance of the models. To do so, we first compute the predictions produced by each one and fix a threshold that provides a good classification. Then, we compute the confusion matrix to check metrics such as general accuracy, sensitivity and specificity. 
+
+Additionally, we check which features are the most important ones. 
+
+### Evaluation of logistic model
+
+```{r}
+log_prediction <- predict(logistic_cv,total_edges_test,type="prob") 
+prediction = as.factor(ifelse(log_prediction[,2]>0.35, "Yes", "No"))
+
+confusionMatrix(prediction, total_edges_test$obs)
+```
+Which heuristic is the most important?
+
+```{r}
+varImp(logistic_cv, scale = FALSE)
+```
+
+The most important similarity measure in this model is the Adamic-Adar one, followed closely by preferential attachment. 
+
+### Evaluation of random forest model
+
+```{r}
 rfProb = predict(rfFit, total_edges_test, type = "prob")
 prediction = as.factor(ifelse(rfProb[,2]>0.1, "Yes", "No"))
 
 confusionMatrix(prediction, total_edges_test$obs)
-
-
 ```
 
-
-
-
+To see variable importance in this case:
 
 ```{r}
-varImp(glm_link)
+varImp(rfFit, scale = FALSE)
 ```
 
-```{r}
-require(corrplot)
-cc <- cor(total_edges_test[,c("sim_jacc","sim_aa","sim_pref")])
-corrplot(cc)
-```
+For the random forest method, the most important variable is the preferential attachment metric, followed by Adamic-Adar and Jaccard's coefficient. 
 
-##5. Potential improvements 
+
+For the two models, the most important heuristics are Adamic-Adar and preferential attachment. Why could this be?
+It's possible that the Adamic-Adar similarity measure captures important structural information about the network that other features do not. For example, if the LastFM network has a structure where a few highly connected nodes are surrounded by many less connected nodes, the Adamic-Adar measure may be particularly effective at capturing the importance of the highly connected nodes. Additionally, preferential attachment is related to the distribution of node degrees in the network. Since our network has a few highly connected nodes (hubs, as we saw in the degree distribution of the LastFM network in homework 1) and many less connected nodes, preferential attachment is capturing the importance of the highly connected nodes.
+
+
+
+## 5. Potential improvements 
 
 *Comment on potential ways to improve the link prediction* 
 
+We can improve the models by adding more significant variables to them, such as additional metrics related to community structure (we saw in the previuos homework that this network has it, with a modularity higher than 80%, so probably this metric will improve performance), distance between nodes (as the topological
+distance of two nodes in the graph, the larger distance, the smaller proximity) and dispersion.
