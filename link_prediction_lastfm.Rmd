@@ -99,7 +99,7 @@ colnames(total_edges) <- c("id1","id2","obs")
 total_edges
 ```
 
-##2. Similarity metrics
+## 2. Similarity metrics
 
 *Generate a number of proximity/similarty metrics heuristics for each link in the positive and negative class*
 
@@ -145,7 +145,7 @@ total_edges %>% pivot_longer(c(sim_jacc,sim_aa,sim_pref)) %>%
 ```
 We can see that all proximity measures all larger for the real links, but specially the Adamic-Adar and Jaccard's Coefficient. The median value of their distribution is larger, and they present more big outliers. 
 
-##3. Binary classifier training 
+## 3. Binary classifier training 
 
 *Train a binary classifier to predict the links, i.e., to predict the class (positive/negative) using those heuristics. Use crossvalidation.*
 
@@ -272,5 +272,17 @@ It's possible that the Adamic-Adar similarity measure captures important structu
 
 *Comment on potential ways to improve the link prediction* 
 
-We can improve the models by adding more significant variables to them, such as additional metrics related to community structure (we saw in the previuos homework that this network has it, with a modularity higher than 80%, so probably this metric will improve performance), distance between nodes (as the topological
-distance of two nodes in the graph, the larger distance, the smaller proximity) and dispersion.
+To improve our models for link prediction, we can include more significant variables.
+
+Firstly, we can incorporate additional metrics that relate to community structure, as we observed in our previous analysis that this network has a modularity higher than 80%. Adding this metric may improve the performance of our model.
+
+Secondly, we can also consider utilizing PageRank scores to predict links between nodes in the network. Since nodes with high PageRank scores are likely to be linked to other important nodes, this could provide valuable information for our model.
+
+Thirdly, computing the shortest path distances between all pairs of nodes could be beneficial. This involves identifying the path with the minimum number of links between each pair of nodes in the network. We could then use this information to identify pairs of nodes with short distances between them, indicating that they are likely to be connected in the future.
+
+Fourthly, other proximity metrics, such as the Katz score, could provide useful insights. This score measures interconnections between nodes and could be used as input for link prediction.
+
+Finally, the Hyper-link induced topic search (HITS) is another feature that our model could evaluate. HITS assigns an Authority score (based on incoming links) and Hub score (based on outgoing links) to each node, and can explain changes in the network over time.
+
+
+
