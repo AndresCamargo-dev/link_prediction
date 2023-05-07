@@ -49,7 +49,8 @@ Even it is quite big, we can try to visualize it in R.
 
 ```{r}
 par(mar=c(0,0,0,0),mfrow=c(1,3))
-E(g)$color<-"lightgray"; V(g)$color <- "white";ll <- layout.kamada.kawai(g)
+E(g)$color<-"lightgray"; V(g)$color <- "blue";ll <- layout.fruchterman.reingold.grid(g)
+
 plot(g,layout=ll,vertex.label="", vertex.size = 1)
 
 ```
@@ -69,7 +70,7 @@ gp <- delete_edges(g,ii)
 Table of deleted (true) links: we store the true deleted links in a separate table, which conforms the positive class. 
 ```{r}
 true_edges <- data.frame(get.edges(g,ii))
-true_edges
+head(true_edges,6)
 ```
 
 Table of false links: for links which are not actually there, we use false links between random nodes (the most connected ones) which are the negative class. 
@@ -83,7 +84,7 @@ for(i in 1:nlinks){
   if(!are.connected(g,i1,i2)) false_edges <- rbind(false_edges,data.frame(X1=i1,X2=i2))
 }
 
-false_edges
+head(false_edges,6)
 ```
 
 Now that we have both kinds of links, we can put them together into a single table, adding an `obs` variable to distinguish them:
@@ -96,7 +97,7 @@ false_edges <- data.frame(false_edges,obs=0)
 total_edges <- rbind(true_edges,false_edges)
 colnames(total_edges) <- c("id1","id2","obs")
 
-total_edges
+head(total_edges,6)
 ```
 
 ## 2. Similarity metrics
@@ -118,7 +119,7 @@ n1 <- neighborhood(gp,order=1,nodes=total_edges$id1)
 n2 <- neighborhood(gp,order=1,nodes=total_edges$id2)
 ```
 
-Since the neighborhoods are saved as lists, we can calculate the proximity metrics for each link in the following way:
+As the neighborhoods are saved as lists, we can calculate the proximity metrics for each link in the following way:
 
 ```{r}
 total_edges$sim_jacc <- 0
@@ -134,7 +135,7 @@ for(i in 1:nrow(total_edges)){
    total_edges$sim_pref[i] <- length(n1[[i]])*length(n2[[i]])
 }
 
-total_edges
+head(total_edges)
 ```
 
 To analyze the generated heuristics, we plot them in boxplots to see the differences between true and false links: 
@@ -143,7 +144,8 @@ To analyze the generated heuristics, we plot them in boxplots to see the differe
 total_edges %>% pivot_longer(c(sim_jacc,sim_aa,sim_pref)) %>%
   ggplot(aes(x=as.factor(obs),y=value)) + geom_boxplot() + facet_wrap(~name,scales="free")
 ```
-We can see that all proximity measures all larger for the real links, but specially the Adamic-Adar and Jaccard's Coefficient. The median value of their distribution is larger, and they present more big outliers. 
+
+We can see that all proximity measures are larger for the real links, but specially the Adamic-Adar and Jaccard's Coefficient. The median value of their distribution is larger, and they present more big outliers. 
 
 ## 3. Binary classifier training 
 
@@ -199,6 +201,7 @@ logistic_cv = train(
 summary(logistic_cv$finalModel)
 
 ```
+
 It seems that the Jaccard's coefficient is not statistically significant for the link prediction. We can check it also by looking at the variables importance:
 
 We also train a random forest to compare the results and see which model has better performance:
@@ -225,7 +228,7 @@ Finally, we evaluate the performance of the models. To do so, we first compute t
 
 Additionally, we check which features are the most important ones. 
 
-### Evaluation of logistic model
+#### 4.1 Evaluation of logistic model 
 
 ```{r}
 log_prediction <- predict(logistic_cv,total_edges_test,type="prob") 
@@ -233,6 +236,7 @@ prediction = as.factor(ifelse(log_prediction[,2]>0.35, "Yes", "No"))
 
 confusionMatrix(prediction, total_edges_test$obs)
 ```
+
 Performance of the model is very good! We get an accuracy of 90%, with similar values for sensitivity and specificity measures. This means that our model is predicting correctly 90% of the links, and is doing specially well on predicting the negative classes (92% correct predictions for false links)
 
 Which heuristic is the most important?
@@ -243,7 +247,7 @@ varImp(logistic_cv, scale = FALSE)
 
 The most important similarity measure in this model is the Adamic-Adar one, followed closely by preferential attachment. 
 
-### Evaluation of random forest model
+#### 4.2 Evaluation of random forest model
 
 ```{r}
 rfProb = predict(rfFit, total_edges_test, type = "prob")
@@ -251,6 +255,7 @@ prediction = as.factor(ifelse(rfProb[,2]>0.1, "Yes", "No"))
 
 confusionMatrix(prediction, total_edges_test$obs)
 ```
+
 The random forest is also very good, with similar performance to the logistic, but even better for the negative cases. 
 
 
@@ -263,8 +268,11 @@ varImp(rfFit, scale = FALSE)
 For the random forest method, the most important variable is the preferential attachment metric, followed by Adamic-Adar and Jaccard's coefficient. 
 
 
-For the two models, the most important heuristics are Adamic-Adar and preferential attachment. Why could this be?
-It's possible that the Adamic-Adar similarity measure captures important structural information about the network that other features do not. For example, if the LastFM network has a structure where a few highly connected nodes are surrounded by many less connected nodes, the Adamic-Adar measure may be particularly effective at capturing the importance of the highly connected nodes. Additionally, preferential attachment is related to the distribution of node degrees in the network. Since our network has a few highly connected nodes (hubs, as we saw in the degree distribution of the LastFM network in homework 1) and many less connected nodes, preferential attachment is capturing the importance of the highly connected nodes. Since both models show a high performance, probably the structure of LastFM network is according to this explanation. 
+For the two models, the most important heuristics are Adamic-Adar and preferential attachment. Why could this be? 
+
+It's possible that the Adamic-Adar similarity measure captures important structural information about the network that other features do not. For example, if the LastFM network has a structure where a few highly connected nodes are surrounded by many less connected nodes, the Adamic-Adar measure may be particularly effective at capturing the importance of the highly connected nodes.We already saw in the boxplots of heuristics that the Adamic-Adar metric was the one in which there is a bigger difference between real and false links. Probably, the models are capturing this and using it to distinguish between the two.
+
+Additionally, preferential attachment is related to the distribution of node degrees in the network. Since our network has a few highly connected nodes (hubs, as we saw in the degree distribution of the LastFM network in homework 1) and many less connected nodes, preferential attachment is capturing the importance of the highly connected nodes. Since both models show a high performance, probably the structure of LastFM network is according to this explanation. 
 
 
 
