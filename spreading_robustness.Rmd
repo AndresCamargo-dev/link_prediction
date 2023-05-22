@@ -200,6 +200,8 @@ ggplot() + geom_line(data=realization_random,aes(x=t,y=ninf,col="Random"))+
 ```
 We obtain the same result when trying with betweenness metric. 
 
+Therefore, if we want the information to spread faster we should target the nodes with larger centrality.
+
 ## d) Inmunization
 
 *Suppose now that you can convince 5% of people in the network not to spread that information at all:*
@@ -239,7 +241,7 @@ ggplot() + geom_line(data=realization,aes(x=t,y=ninf,col="No Vaccination")) +
   geom_line(data=realization_targeted,aes(x=t,y=ninf,col="Vacc. Targeted"))
 ```
 
-Random vaccination has an effect similar to no vaccination at all with regard to the time at which the peak is reached. However, the infected nodes in the peak is much higher with no vaccination than with random.
+Random vaccination has an effect similar to no vaccination at all with regard to the time at which the peak is reached. However, the infected nodes in the peak is higher with no vaccination than with random.Since in our network is very heterogeneous, we would need to vaccinate randomly a lot of nodes to stop the spreading. 
 
 On the contrary, targeted vaccination based on Page Rank centrality measure does more than halve the peak of infected people (from 4000 to 1500), which is reached later in time (at time 5 instead of time 2.5)
 
