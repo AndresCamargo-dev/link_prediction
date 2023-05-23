@@ -5,13 +5,13 @@ date: "2023-05-19"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup,  warning=FALSE, message=FALSE, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
 Libraries
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 library(tidyverse)
 library(igraph)
 library(visNetwork)
@@ -47,10 +47,9 @@ mu <- 0.1
 betac <- mu*mean(degree(g))/(mean(degree(g)^2))
 betac
 ```
-The parameter mu stands for the recovery rate. It is the rate at which infected individuals recover and become immune to the disease. The epidemic threshold is defined as the minimum value of the transmission rate β required for an epidemic to occur in a population. 
+The parameter mu stands for the recovery rate. It is the rate at which infected individuals recover and become immune to the disease. The epidemic threshold is defined as the minimum value of the transmission rate β required for an epidemic to occur and persist in a population. 
 
-Assuming mu = 0.1, the epidemic threshold in our network is very small (0.0039), because of the heterogeneity in the degree distribution (⟨k⟩ = 7.3 and ⟨k^2⟩ = 185.4, so ⟨k^2⟩>>⟨k⟩)
-Therefore, it is very easy to spread in this network!
+Assuming $mu = 0.1$, the epidemic threshold in our network is very small $(0.0039)$, because of the heterogeneity in the degree distribution $(⟨k⟩ = 7.3$ and $⟨k^2⟩ = 185.4$, so $⟨k^2⟩>>⟨k⟩)$. Therefore,as the epidemic threshold βc is really small, it is very easy to spread in this network!
 
 
 ## b) SIR simulation
@@ -101,7 +100,7 @@ results %>% ggplot(aes(x=beta,y=ninf))+ geom_point()+
 
 
 
-## c) Acelerate Infection
+## c) Acelerate Spreading
 
 *Choose a β above βc. Using centrality, communities or any other metric, find a better set of 1% of seeds in the network so we get more infected people than the random case. Measure the difference of your choice with the random case as: *
 - *The difference in the total number of infected people*
@@ -112,6 +111,7 @@ First, we generate the realization with a β above βc, to then check which metr
 ```{r}
 seeds <- sample(1:vcount(g),vcount(g)*0.01)
 realization <- sim_sir(g,beta=0.2,mu=0.1,seeds)
+
 ```
 
 ```{r}
@@ -177,7 +177,9 @@ realization_targeted <- sim_sir(g,beta = 0.15,mu=0.1, as.vector(as.integer(seeds
 ggplot() + geom_line(data=realization_random,aes(x=t,y=ninf,col="Random"))+
   geom_line(data=realization_targeted,aes(x=t,y=ninf,col="Targeted"))
 ```
-We can see than infecting first the nodes with higher centrality the peak is reached sooner in time, and the number of nodes infected is algo higher than with random spread. Thus, selecting the seeds according to centrality metrics does acceleate the spreading. 
+
+
+We can see than infecting first the nodes with higher centrality the peak is reached sooner in time, and the number of nodes infected is higher than with random spread. Thus, selecting the seeds according to centrality metrics does accelerate the spreading. 
 
 
 ```{r}
@@ -198,6 +200,8 @@ realization_targeted <- sim_sir(g,beta = 0.15,mu=0.1, as.vector(as.integer(seeds
 ggplot() + geom_line(data=realization_random,aes(x=t,y=ninf,col="Random"))+
   geom_line(data=realization_targeted,aes(x=t,y=ninf,col="Targeted"))
 ```
+
+
 We obtain the same result when trying with betweenness metric. 
 
 Therefore, if we want the information to spread faster we should target the nodes with larger centrality.
@@ -241,9 +245,9 @@ ggplot() + geom_line(data=realization,aes(x=t,y=ninf,col="No Vaccination")) +
   geom_line(data=realization_targeted,aes(x=t,y=ninf,col="Vacc. Targeted"))
 ```
 
-Random vaccination has an effect similar to no vaccination at all with regard to the time at which the peak is reached. However, the infected nodes in the peak is higher with no vaccination than with random.Since in our network is very heterogeneous, we would need to vaccinate randomly a lot of nodes to stop the spreading. 
+Random vaccination has an effect similar to no vaccination at all with regard to the time at which the peak is reached. However, the infected nodes in the peak is higher with no vaccination than with random. Since in our network is very heterogeneous, we would need to vaccinate randomly a lot of nodes to stop the spreading. 
 
-On the contrary, targeted vaccination based on Page Rank centrality measure does more than halve the peak of infected people (from 4000 to 1500), which is reached later in time (at time 5 instead of time 2.5)
+On the contrary, targeted vaccination based on Page Rank centrality measure does more than half the peak of infected people (from 4000 to 1500), which is reached later in time (at time 5 instead of time 2.5)
 
 
 
@@ -251,7 +255,7 @@ On the contrary, targeted vaccination based on Page Rank centrality measure does
 
 *Comment on the relationship between the findings in part c) and d) using the same type of centrality for the 1% in part c) and 5% in part d).*
 
-According to the graphs obtained in part c) and d), when we select the seeds according to higher _page rank_, the spreading gets faster(c). In the same way, when we target immunization also by page rank, we prevent spreading and the peak is reached later in time(d). 
+According to the graphs obtained in part c) and d), selecting the seeds based on higher _Page Rank_ leads to faster spreading (c). Similarly, when targeting immunization using PageRank, it delays the peak of spreading (d). This is because we have identified nodes in the network that have a higher influence on spreading. The impact generated by nodes with higher centrality is reflected in the propagation throughout the network, triggering cascades of influence that result in greater spread of the behavior in case c) or reduced spreading in case d).
 
 ## f) Improve inmunization
 
