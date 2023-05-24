@@ -85,6 +85,7 @@ sim_sir <- function(g,beta,mu,seeds){
 }
 ```
 
+
 Now, we set the seeds to be 1% randomly chosen nodes, and set the beta value to be between 0 and 0.25 by 0.005. 
 The value of mu is fixed to 0.1 as before. 
 
@@ -261,7 +262,7 @@ According to the graphs obtained in part c) and d), selecting the seeds based on
 
 *With the results of part b) train a model that predicts that time to infection of a node using their degree, centrality, betweeness and page rank. Use that model to select the seed nodes as those with the smallest time to infection in part c).*
 
-To build a model that predicts the time to infection of a node based on its degree, centrality, betweenness, and page rank, we adopted a multiclass classification approach. Initially, we compiled a dataset containing the necessary characteristics for each node. Next, we partitioned the dataset into separate train and test subsets to assess model performance. For the classification task, we opted for the random forest algorithm. Lastly, we conducted an evaluation of the model to examine its predictive capabilities and assess its effectiveness.
+To develop a predictive model for node infection time using degree, centrality, betweenness, and PageRank, we employed a multiclass classification approach. The target variable was created by categorizing nodes into four infection time categories: "very fast" (time < 4), "fast" (5-8), "medium" (9-12), and "slow" (> 12). A comprehensive dataset was compiled, including the relevant characteristics for each node. Subsequently, the dataset was divided into separate train and test subsets to evaluate the model's performance. For the classification task, we chose the random forest algorithm. Finally, we conducted an evaluation of the model to assess its predictive capabilities and effectiveness.
 
 ```{r}
 # create dataframe 
@@ -277,8 +278,16 @@ nodes_data <- data.frame(
   pageRank = page.rank(g)$vector  
 )
 
+#hist(realization$t)
 nodes_df = nodes_data %>% left_join(realization, by= c('id'='inf')) %>% 
-  drop_na() 
+  drop_na() %>% 
+  mutate(
+    category = as.factor(case_when(
+      t <= 4 ~ "Very Fast",
+      t > 4 & t <= 8 ~ "Fast",
+      t > 8 & t <= 12 ~ "Medium",
+      t > 12 ~ "Slow"
+  )))
 #%>%   mutate(t = as.factor(t))
 
 head(nodes_df)
@@ -287,7 +296,7 @@ head(nodes_df)
 
 ```{r}
 # model for multiclass classification
-in_train <- createDataPartition(nodes_df$t, p = 0.75, list = FALSE)  
+in_train <- createDataPartition(nodes_df$category, p = 0.75, list = FALSE)  
 training <- nodes_df[in_train,]
 testing <- nodes_df[-in_train,]
 
@@ -297,7 +306,7 @@ ctrl <- trainControl(method = "cv",
                      verboseIter = FALSE)
 
 # Train a Random Forest classifier with cross-validation
-model <- train(t ~ degree + closeness + betweenness + pageRank,
+model <- train(category ~ degree + closeness + betweenness + pageRank,
           data = training,
           method = "rf",            
           trControl = ctrl)         
@@ -307,7 +316,7 @@ print(model)
 
 # Make predictions on new data using the trained model
 predictions <- predict(model, testing)
-confusionMatrix(predictions, testing$t)
+confusionMatrix(predictions, testing$category)
 
 
 #print(predictions)
@@ -317,6 +326,7 @@ confusionMatrix(predictions, testing$t)
 ```{r}
 randomForest::varImpPlot(model$finalModel)
 ```
+
 The graph of variable importance for the random forest model predicting the time to infection of a node give us insights into the relative significance of different variables in determining the time of infection. Page rank emerges as the most influential variable, indicating that the ranking of nodes based on their importance in the network has a strong impact on the timing of infection. Closeness is the second most important variable, suggesting that nodes with higher closeness centrality, meaning they are more closely connected to other nodes in the network, tend to exhibit specific patterns in the timing of infection. Betweenness is the third important variable, indicating that nodes with higher betweenness centrality, which act as critical bridges connecting different parts of the network, have an influence on the timing of infection. Degree is the least important variable among the four, implies that the number of connections a node has in the network has a relatively smaller impact on the timing of infection. However, it still contributes to the model's prediction.
 
 
