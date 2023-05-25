@@ -398,5 +398,39 @@ ggplot() + geom_line(data=realization,aes(x=t,y=ninf,col="No Vaccination")) +
 
 ```
 
+### SIMPLE OPTION FOR THE MODEL 
+
+```{r}
+# create dataframe 
+seeds <- sample(1:vcount(g),vcount(g)*0.01)
+realization <- sim_sir(g,beta=0.2,mu=0.1,seeds) 
+realization = realization %>% distinct()
+
+nodes_data <- data.frame(
+  id = as.numeric(V(g)$name),
+  degree = degree(g),  
+  closeness = closeness(g,cutoff=2),  
+  betweenness = betweenness(g),  
+  pageRank = page.rank(g)$vector  
+) 
+
+nodes_df = nodes_data %>% left_join(realization, by= c('id'='inf')) %>% 
+  drop_na() 
+
+head(nodes_df)
+
+```
+
+
+```{r}
+
+model <- lm(t ~ degree + closeness + betweenness + pageRank, data = nodes_df)
+
+pred = predict(model)
+
+nodes_df <- nodes_df %>% mutate(time_pred = predict(model))
+
+seeds <- nodes_df %>% slice_min(time_pred, n = 76) %>% pull(id)
+```
 
 
