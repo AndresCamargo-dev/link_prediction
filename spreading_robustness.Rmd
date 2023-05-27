@@ -1,7 +1,7 @@
 ---
 title: "Final Assignment"
 author: "Emma Pérez & Andrés Camargo"
-date: "2023-05-19"
+date: "2023-05-27"
 output: html_document
 ---
 
@@ -47,7 +47,7 @@ mu <- 0.1
 betac <- mu*mean(degree(g))/(mean(degree(g)^2))
 betac
 ```
-The parameter mu stands for the recovery rate. It is the rate at which infected individuals recover and become immune to the disease. The epidemic threshold is defined as the minimum value of the transmission rate β required for an epidemic to occur and persist in a population. 
+The parameter "mu" represents the recovery rate, indicating the rate at which infected individuals recover and acquire immunity to the disease. The epidemic threshold is defined as the minimum value of the transmission rate "beta" required for an epidemic to initiate and persist within a population.
 
 Assuming $mu = 0.1$, the epidemic threshold in our network is very small $(0.0039)$, because of the heterogeneity in the degree distribution $(⟨k⟩ = 7.3$ and $⟨k^2⟩ = 185.4$, so $⟨k^2⟩>>⟨k⟩)$. Therefore,as the epidemic threshold βc is really small, it is very easy to spread in this network!
 
@@ -56,7 +56,7 @@ Assuming $mu = 0.1$, the epidemic threshold in our network is very small $(0.003
 
 *Assuming that randomly-selected 1% of the nodes of your network knows about the information, simulate the SIR model below and above that threshold and plot the number of infected people as a function of β.*
 
-First, we create the function for the SIR simulation, which contains the parameters for the network (g), the beta or transmission rate (beta), the mu or recovery rate (mu) and the seeds (initial number of people infected).
+First, we create the function for the SIR simulation, which includes parameters for the network (g), the transmission rate (beta), the recovery rate (mu), and the initial number of infected individuals (seeds).
 
 ```{r}
 sim_sir <- function(g,beta,mu,seeds){
@@ -86,8 +86,7 @@ sim_sir <- function(g,beta,mu,seeds){
 ```
 
 
-Now, we set the seeds to be 1% randomly chosen nodes, and set the beta value to be between 0 and 0.25 by 0.005. 
-The value of mu is fixed to 0.1 as before. 
+Now, we set the seeds to be 1% randomly chosen nodes, and set the beta value to be between 0 and 0.25 by 0.005. The value of "mu" is fixed to 0.1 as before. 
 
 ```{r}
 results <- map_dfr(seq(0,0.25,0.005),
@@ -179,9 +178,7 @@ ggplot() + geom_line(data=realization_random,aes(x=t,y=ninf,col="Random"))+
   geom_line(data=realization_targeted,aes(x=t,y=ninf,col="Targeted"))
 ```
 
-
-We can see than infecting first the nodes with higher centrality the peak is reached sooner in time, and the number of nodes infected is higher than with random spread. Thus, selecting the seeds according to centrality metrics does accelerate the spreading. 
-
+We observe that by infecting nodes with higher centrality first, the peak of infection is reached earlier in time, and the total number of infected nodes is higher compared to random spreading. Therefore, selecting the initial seeds based on centrality metrics does accelerate the spread of the infection.
 
 ```{r}
 #Random realization
@@ -215,7 +212,7 @@ Therefore, if we want the information to spread faster we should target the node
 - *Choose those 5% according to their centrality. Simulate the SIR model above βc using 1% of the remaining nodes as seeds. Choose those seeds randomly.* 
 - *Measure the difference between both cases as you did in part c).*
 
-First, we simulate the SIR model using a random 5% of people 
+First, we simulate the SIR model using a random 5% of people: 
 ```{r}
 seeds <- sample(1:vcount(g),vcount(g)*0.01)
 realization <- sim_sir(g,beta = 0.5,mu=0.1,seeds) %>%
@@ -246,19 +243,18 @@ ggplot() + geom_line(data=realization,aes(x=t,y=ninf,col="No Vaccination")) +
   geom_line(data=realization_targeted,aes(x=t,y=ninf,col="Vacc. Targeted"))
 ```
 
-Random vaccination has an effect similar to no vaccination at all with regard to the time at which the peak is reached. However, the infected nodes in the peak is higher with no vaccination than with random. Since in our network is very heterogeneous, we would need to vaccinate randomly a lot of nodes to stop the spreading. 
+Random vaccination has a similar effect to no vaccination at all in terms of the timing of the infection peak. However, the number of infected nodes at the peak is higher without any vaccination compared to random vaccination. Due to the high heterogeneity in our network, a significant number of nodes would need to be randomly vaccinated to effectively control the spread.
 
-On the contrary, targeted vaccination based on Page Rank centrality measure does more than half the peak of infected people (from 4000 to 1500), which is reached later in time (at time 5 instead of time 2.5)
-
+In contrast, targeted vaccination based on the PageRank centrality measure reduces the number of infected individuals by more than half (from 4000 to 1500). Furthermore, the peak of infected individuals is reached later in time (at time 5 instead of time 2.5) with targeted vaccination.
 
 
 ## e) Analysis of Inmunization
 
 *Comment on the relationship between the findings in part c) and d) using the same type of centrality for the 1% in part c) and 5% in part d).*
 
-According to the graphs obtained in part c) and d), selecting the seeds based on higher _Page Rank_ leads to faster spreading (c). Similarly, when targeting immunization using PageRank, it delays the peak of spreading (d). This is because we have identified nodes in the network that have a higher influence on spreading. The impact generated by nodes with higher centrality is reflected in the propagation throughout the network, triggering cascades of influence that result in greater spread of the behavior in case c) or reduced spreading in case d).
+According to the graphs obtained in parts (c) and (d), selecting the initial seeds based on higher PageRank leads to accelerated spreading (c). Similarly, when targeting immunization using PageRank, it delays the peak of spreading (d). This occurs because we have identified nodes in the network that possess greater influence on the spread of the behavior. The impact generated by nodes with higher centrality is manifested in the propagation throughout the network, initiating cascades of influence that result in a greater spread of the behavior in case (c) or reduced spreading in case (d).
 
-## f) Predict time of infection
+## f) Influence Maximization
 
 *With the results of part b) train a model that predicts that time to infection of a node using their degree, centrality, betweeness and page rank. Use that model to select the seed nodes as those with the smallest time to infection in part c).*
 
@@ -294,30 +290,6 @@ nodes_df = nodes_data %>% left_join(realization, by= c('id'='inf')) %>%
 head(nodes_df)
 ``` 
 
-Model Option 2, 
-```
-# create dataframe 
-
-nodes_data <- data.frame(
-  id = as.numeric(V(g)$name),
-  degree = degree(g),  
-  closeness = closeness(g,cutoff=2),  
-  betweenness = betweenness(g),  
-  pageRank = page.rank(g)$vector  
-) 
-
-nodes_df = nodes_data %>%  
-  mutate(
-    category = as.factor(case_when(
-      degree >= quantile(degree, probs = 0.9) |
-      closeness >= quantile(closeness, probs = 0.9) |
-      pageRank >= quantile(pageRank, probs = 0.9) |
-      betweenness >= quantile(betweenness, probs = 0.95) ~ "High",
-    TRUE ~ "Low"))) 
-
-table(nodes_df$category)
-head(nodes_df)
-``` 
 
 ```{r}
 # model for multiclass classification
@@ -361,7 +333,72 @@ seeds <- testing %>% filter(predicted_ctg == "Very Fast") %>% pull(id)
 head(seeds)
 ```
 
-*Repeat d).*
+In addition to the model previously explained, we created two alternative models that were discarded due to their low performance for influence maximization. The first alternative is a classification model that identifies high and low central nodes using its metrics. The second one is a linear regression that uses the time of spreading as a continuous target variable. The code is provided below but has not been executed.
+
+##### Model Option 2
+
+```
+# create dataframe 
+
+nodes_data <- data.frame(
+  id = as.numeric(V(g)$name),
+  degree = degree(g),  
+  closeness = closeness(g,cutoff=2),  
+  betweenness = betweenness(g),  
+  pageRank = page.rank(g)$vector  
+) 
+
+nodes_df = nodes_data %>%  
+  mutate(
+    category = as.factor(case_when(
+      degree >= quantile(degree, probs = 0.9) |
+      closeness >= quantile(closeness, probs = 0.9) |
+      pageRank >= quantile(pageRank, probs = 0.9) |
+      betweenness >= quantile(betweenness, probs = 0.95) ~ "High",
+    TRUE ~ "Low"))) 
+
+table(nodes_df$category)
+head(nodes_df)
+
+model <- train(category ~ degree + closeness + betweenness + pageRank,
+          data = training,
+          method = "rf",            
+          trControl = ctrl)  
+``` 
+
+
+##### Model Option 3
+
+```
+seeds <- sample(1:vcount(g),vcount(g)*0.01)
+realization <- sim_sir(g,beta=0.2,mu=0.1,seeds) 
+realization = realization %>% distinct()
+
+nodes_data <- data.frame(
+  id = as.numeric(V(g)$name),
+  degree = degree(g),  
+  closeness = closeness(g,cutoff=2),  
+  betweenness = betweenness(g),  
+  pageRank = page.rank(g)$vector  
+) 
+
+nodes_df = nodes_data %>% left_join(realization, by= c('id'='inf')) %>% 
+  drop_na() 
+
+head(nodes_df)
+
+
+model <- lm(t ~ degree + closeness + betweenness + pageRank, data = nodes_df)
+
+pred = predict(model)
+
+nodes_df <- nodes_df %>% mutate(time_pred = predict(model))
+
+seeds <- nodes_df %>% slice_min(time_pred, n = 76) %>% pull(id)
+```
+
+
+## Repeat d).
 
 First, we generate a SIR model with randomly selected nodes.
 
@@ -398,39 +435,6 @@ ggplot() + geom_line(data=realization,aes(x=t,y=ninf,col="No Vaccination")) +
 
 ```
 
-### SIMPLE OPTION FOR THE MODEL 
-
-```{r}
-# create dataframe 
-seeds <- sample(1:vcount(g),vcount(g)*0.01)
-realization <- sim_sir(g,beta=0.2,mu=0.1,seeds) 
-realization = realization %>% distinct()
-
-nodes_data <- data.frame(
-  id = as.numeric(V(g)$name),
-  degree = degree(g),  
-  closeness = closeness(g,cutoff=2),  
-  betweenness = betweenness(g),  
-  pageRank = page.rank(g)$vector  
-) 
-
-nodes_df = nodes_data %>% left_join(realization, by= c('id'='inf')) %>% 
-  drop_na() 
-
-head(nodes_df)
-
-```
-
-
-```{r}
-
-model <- lm(t ~ degree + closeness + betweenness + pageRank, data = nodes_df)
-
-pred = predict(model)
-
-nodes_df <- nodes_df %>% mutate(time_pred = predict(model))
-
-seeds <- nodes_df %>% slice_min(time_pred, n = 76) %>% pull(id)
-```
+The influence maximization model, utilizing centrality metrics, resulted in a targeted vaccination strategy that reduced the number of infected people by 500 compared to random vaccination. However, the model did not affect the overall time of the spreading process.
 
 
