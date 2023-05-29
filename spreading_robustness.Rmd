@@ -258,7 +258,7 @@ According to the graphs obtained in parts (c) and (d), selecting the initial see
 
 *With the results of part b) train a model that predicts that time to infection of a node using their degree, centrality, betweeness and page rank. Use that model to select the seed nodes as those with the smallest time to infection in part c).*
 
-To develop a predictive model for node infection time using degree, centrality, betweenness, and PageRank, we employed a multiclass classification approach. The target variable was created by categorizing nodes into four infection time categories: "very fast" (time < 4), "fast" (5-8), "medium" (9-12), and "slow" (> 12). A comprehensive dataset was compiled, including the relevant characteristics for each node. Subsequently, the dataset was divided into separate train and test subsets to evaluate the model's performance. For the classification task, we chose the random forest algorithm. Finally, we conducted an evaluation of the model to assess its predictive capabilities and effectiveness.
+To develop a predictive model for node infection time using degree, centrality, betweenness, and PageRank, we employed a multiclass classification approach. The target variable was created by categorizing nodes into four infection time categories: "very fast" (time < 4), "fast" (5-8), "medium" (9-12), and "slow" (> 12). A comprehensive dataset was compiled, including the relevant characteristics for each node. Subsequently, the dataset was divided into separate train and test subsets to evaluate the model's performance. For the classification task, we chose the random forest algorithm.Additionally, we implemented some future engineering transformations to enhance the predictive power of our model. Finally, we conducted an evaluation of the model to assess its predictive capabilities and effectiveness.
 
 ```{r}
 # create dataframe 
@@ -303,7 +303,7 @@ ctrl <- trainControl(method = "cv",
                      verboseIter = FALSE)
 
 # Train a Random Forest classifier with cross-validation
-model <- train(category ~ degree + closeness + betweenness + pageRank,
+model <- train(category ~ degree + closeness + betweenness + pageRank + closeness* betweenness + betweenness * pageRank + degree^2 + pageRank^2,
           data = training,
           method = "rf",            
           trControl = ctrl)         
@@ -314,9 +314,6 @@ print(model)
 # Make predictions on new data using the trained model
 predictions <- predict(model, testing)
 confusionMatrix(predictions, testing$category)
-
-
-#print(predictions)
 ```
 
 
@@ -324,7 +321,9 @@ confusionMatrix(predictions, testing$category)
 randomForest::varImpPlot(model$finalModel)
 ```
 
-The graph of variable importance for the random forest model predicting the time to infection of a node give us insights into the relative significance of different variables in determining the time of infection. Page rank emerges as the most influential variable, indicating that the ranking of nodes based on their importance in the network has a strong impact on the timing of infection. Closeness is the second most important variable, suggesting that nodes with higher closeness centrality, meaning they are more closely connected to other nodes in the network, tend to exhibit specific patterns in the timing of infection. Betweenness is the third important variable, indicating that nodes with higher betweenness centrality, which act as critical bridges connecting different parts of the network, have an influence on the timing of infection. Degree is the least important variable among the four, implies that the number of connections a node has in the network has a relatively smaller impact on the timing of infection. However, it still contributes to the model's prediction.
+The graph depicting the variable importance of the random forest model offers valuable insights into the relative significance of different variables in determining the time of infection for a node. Among the variables considered, PageRank stands out as the most influential factor. This highlights that the ranking of nodes based on their importance within the network plays a substantial role in determining the timing of infection. Following PageRank, closeness emerges as the second most important variable. This suggests that nodes with higher closeness centrality, indicating closer connections to other nodes in the network, tend to exhibit distinct patterns in terms of infection timing. This finding underscores the impact of proximity and immediate network connections on the spread of infection.
+
+In the spectrum of variable importance, interactions between variables occupy a medium position. These interactions reflect the combined influence of multiple factors and their interplay in shaping the timing of infection. Considering these interactions can provide a deeper understanding of the complexities involved in predicting infection times accurately. On the other hand, degree appears to be the least important variable among the four considered. This implies that the number of connections a node has in the network has a relatively smaller impact on the timing of infection. Nonetheless, it still contributes to the model's predictions, albeit to a lesser extent compared to the other variables.
 
 Selecting nodes of shortest time to infection:
 ```{r}
@@ -335,11 +334,10 @@ head(seeds)
 
 In addition to the model previously explained, we created two alternative models that were discarded due to their low performance for influence maximization. The first alternative is a classification model that identifies high and low central nodes using its metrics. The second one is a linear regression that uses the time of spreading as a continuous target variable. The code is provided below but has not been executed.
 
-##### Model Option 2
+##### Model Option 2 (node classification according to percentiles)
 
 ```
-# create dataframe 
-
+# create dataframe of predictors
 nodes_data <- data.frame(
   id = as.numeric(V(g)$name),
   degree = degree(g),  
@@ -348,26 +346,54 @@ nodes_data <- data.frame(
   pageRank = page.rank(g)$vector  
 ) 
 
+# create target variable
 nodes_df = nodes_data %>%  
   mutate(
     category = as.factor(case_when(
-      degree >= quantile(degree, probs = 0.9) |
+      degree >= quantile(degree, probs = 0.95) |
       closeness >= quantile(closeness, probs = 0.9) |
       pageRank >= quantile(pageRank, probs = 0.9) |
-      betweenness >= quantile(betweenness, probs = 0.95) ~ "High",
+      betweenness >= quantile(betweenness, probs = 0.9) ~ "High",
     TRUE ~ "Low"))) 
 
 table(nodes_df$category)
 head(nodes_df)
 
+# Train
 model <- train(category ~ degree + closeness + betweenness + pageRank,
           data = training,
           method = "rf",            
           trControl = ctrl)  
+# Predict
+predictions <- predict(model, testing)
+testing$predicted_ctg = predictions
+
+confusionMatrix(predictions, testing$category)
+
+# Compare SIR realizations
+seeds <- sample(1:vcount(g),vcount(g)*0.01)
+realization <- sim_sir(g,beta = 0.5,mu=0.1,seeds) %>%
+  group_by(t) %>% summarize(ninf=n())
+vaccinated_random <- sample(1:vcount(g),vcount(g)*0.05)#5% randomly chosen
+gp <- delete_vertices(g,vaccinated_random)
+seeds <- sample(1:vcount(gp),vcount(gp)*0.01)
+realization_random <- sim_sir(gp,beta = 0.5,mu=0.1,seeds) %>%
+  group_by(t) %>% summarize(ninf=n())
+
+seeds <- testing %>% filter(predicted_ctg == "Very Fast") %>% pull(id)
+sample_seeds <- sample(seeds, 75)
+gp <- delete_vertices(g,seeds)
+seeds <- sample(1:vcount(gp),vcount(gp)*0.01)
+realization_modelselected <- sim_sir(gp,beta = 0.5,mu=0.1,seeds) %>%
+  group_by(t) %>% summarize(ninf=n())
+
+ggplot() + geom_line(data=realization,aes(x=t,y=ninf,col="No Vaccination")) +
+  geom_line(data=realization_random,aes(x=t,y=ninf,col="Vacc. Random"))+
+  geom_line(data=realization_modelselected,aes(x=t,y=ninf,col="Vacc. Selected by model"))
 ``` 
 
 
-##### Model Option 3
+##### Model Option 3 (target variable as continuous)
 
 ```
 seeds <- sample(1:vcount(g),vcount(g)*0.01)
@@ -387,14 +413,30 @@ nodes_df = nodes_data %>% left_join(realization, by= c('id'='inf')) %>%
 
 head(nodes_df)
 
-
+# Fit model and predict
 model <- lm(t ~ degree + closeness + betweenness + pageRank, data = nodes_df)
-
 pred = predict(model)
-
 nodes_df <- nodes_df %>% mutate(time_pred = predict(model))
 
+# compare SIR realization
+seeds <- sample(1:vcount(g),vcount(g)*0.01)
+realization <- sim_sir(g,beta = 0.5,mu=0.1,seeds) %>%
+  group_by(t) %>% summarize(ninf=n())
+vaccinated_random <- sample(1:vcount(g),vcount(g)*0.05)#5% randomly chosen
+gp <- delete_vertices(g,vaccinated_random)
+seeds <- sample(1:vcount(gp),vcount(gp)*0.01)
+realization_random <- sim_sir(gp,beta = 0.5,mu=0.1,seeds) %>%
+  group_by(t) %>% summarize(ninf=n())
+
 seeds <- nodes_df %>% slice_min(time_pred, n = 76) %>% pull(id)
+gp <- delete_vertices(g,seeds)
+seeds <- sample(1:vcount(gp),vcount(gp)*0.01)
+realization_modelselected <- sim_sir(gp,beta = 0.5,mu=0.1,seeds) %>%
+  group_by(t) %>% summarize(ninf=n())
+
+ggplot() + geom_line(data=realization,aes(x=t,y=ninf,col="No Vaccination")) +
+  geom_line(data=realization_random,aes(x=t,y=ninf,col="Vacc. Random"))+
+  geom_line(data=realization_modelselected,aes(x=t,y=ninf,col="Vacc. Selected by model"))
 ```
 
 
@@ -424,6 +466,8 @@ seeds <- sample(1:vcount(gp),vcount(gp)*0.01)
 realization_modelselected <- sim_sir(gp,beta = 0.5,mu=0.1,seeds) %>%
   group_by(t) %>% summarize(ninf=n())
 
+
+
 ```
 
 Let's see the difference between both cases: 
@@ -435,6 +479,6 @@ ggplot() + geom_line(data=realization,aes(x=t,y=ninf,col="No Vaccination")) +
 
 ```
 
-The influence maximization model, utilizing centrality metrics, resulted in a targeted vaccination strategy that reduced the number of infected people by 500 compared to random vaccination. However, the model did not affect the overall time of the spreading process.
+The application of the influence maximization model, incorporating centrality metrics, led to the development of a targeted vaccination strategy. This strategic approach resulted in a significant reduction in the number of infected individuals, demonstrating its effectiveness compared to random vaccination methods. It is important to note, however, that despite the success in reducing the number of infections, the model did not have a noticeable impact on the overall duration of the spreading process. While the targeted vaccination strategy efficiently identified and prioritized influential nodes for vaccination, it did not directly influence the rate at which the infection spread through the network.
 
 
